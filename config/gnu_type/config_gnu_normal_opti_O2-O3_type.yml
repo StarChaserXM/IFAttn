@@ -5,9 +5,6 @@ outdir:
 # turn on debug mode or not
 debug: False
 
-# this is a random seed for debugging
-seed: "TikNib"
-
 # if True, perform training to select features, otherwise, just use the given
 # features.
 do_train: True

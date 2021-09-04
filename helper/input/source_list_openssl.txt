@@ -1,2 +1,0 @@
-D:\program_jiang\Pro\BCSA\SrcData\openssl\openssl-1.0.1f
-D:\program_jiang\Pro\BCSA\SrcData\openssl\openssl-1.0.1u
