@@ -1,0 +1,5 @@
+D:\program_jiang\Pro\BCSA\SrcData\busybox\busybox-1_21_1
+D:\program_jiang\Pro\BCSA\SrcData\gnu\sources\coreutils\coreutils-6.5
+D:\program_jiang\Pro\BCSA\SrcData\gnu\sources\coreutils\coreutils-6.7
+D:\program_jiang\Pro\BCSA\SrcData\openssl\openssl-1.0.1f
+D:\program_jiang\Pro\BCSA\SrcData\openssl\openssl-1.0.1u
