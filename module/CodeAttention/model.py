@@ -8,8 +8,6 @@ from module.CodeAttention.attention.SelfAttention import ScaledDotProductAttenti
 from module.CodeAttention.attention.ExternalAttention import ExternalAttention
 
 class PositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
-
     def __init__(self, d_in, d_hid, dropout=0.1):
         super().__init__()
         self.w_1 = nn.Linear(d_in, d_hid)  # position-wise
@@ -34,12 +32,12 @@ class EncoderLayer(nn.Module):
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, att_type, dropout=0.1):
         super(EncoderLayer, self).__init__()
         self.att_type = att_type
-        self.slf_attn = ScaledDotProductAttention(d_model=1, d_k=d_k, d_v=d_v, h=n_head, dropout=dropout)
-        self.ext_attn = ExternalAttention(d_model=1,S=d_k,dropout=dropout)
+        self.d_model = d_model
+        self.slf_attn = ScaledDotProductAttention(d_model=self.d_model, d_k=d_k, d_v=d_v, h=n_head, dropout=dropout)
+        self.ext_attn = ExternalAttention(d_model=self.d_model,S=d_k,dropout=dropout)
         self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
 
     def forward(self, enc_input, slf_attn_mask=None):
-        enc_input = enc_input.unsqueeze(-1)
         if self.att_type == 'SelfAttention':
             enc_output, enc_slf_attn = self.slf_attn(enc_input, enc_input, enc_input, attention_mask=slf_attn_mask)
         elif self.att_type == 'ExternalAttention':
@@ -47,31 +45,39 @@ class EncoderLayer(nn.Module):
         elif self.att_type == 'NoAttention':
             enc_output = enc_input
             enc_slf_attn = None
-        enc_output = enc_output.squeeze(-1)
+        enc_output = self.pos_ffn(enc_output)
         return enc_output, enc_slf_attn
 
 class SiameseAttentionNet(nn.Module):
     def __init__(self, feature_dim, hidden_dim, n_layers, n_head, d_k, d_v, att_type, dropout):
         super().__init__()
+        self.feature_dim = feature_dim
         self.layer_stack = nn.ModuleList([
             EncoderLayer(feature_dim, hidden_dim, n_head, d_k, d_v, att_type, dropout=dropout)
             for _ in range(n_layers)])
 
     def forward(self, input1, input2):
-        enc_slf_attn_list1 = []
-        enc_slf_attn_list2 = []
+        attn_list1 = []
+        attn_list2 = []
+        input1 = input1.unsqueeze(-1)
+        input2 = input2.unsqueeze(-1)
+        pad = (0,self.feature_dim-1)
+        output1 = F.pad(input1,pad,'constant',0)
+        output2 = F.pad(input2,pad,'constant',0)
 
 
         for enc_layer in self.layer_stack:
-            enc_output1, enc_slf_attn1 = enc_layer(input1, slf_attn_mask=None)
-            enc_slf_attn_list1 += [enc_slf_attn1]
+            output1, slf_attn1 = enc_layer(output1, slf_attn_mask=None)
+            attn_list1 += [slf_attn1]
 
-            enc_output2, enc_slf_attn2 = enc_layer(input2, slf_attn_mask=None)
-            enc_slf_attn_list2 += [enc_slf_attn2]
+            output2, slf_attn2 = enc_layer(output2, slf_attn_mask=None)
+            attn_list2 += [slf_attn2]
 
 
-        similarity = F.cosine_similarity(enc_output1, enc_output2, dim=1, eps=1e-8)
-        return enc_output1, enc_output2, similarity, enc_slf_attn_list1, enc_slf_attn_list2
+        output1 = output1.sum(dim=-1)
+        output2 = output2.sum(dim=-1)
+        similarity = F.cosine_similarity(output1, output2, dim=-1, eps=1e-8)
+        return output1, output2, similarity, attn_list1, attn_list2
 
     def data_normal(self, origin_data):
         d_min = origin_data.min()
@@ -83,9 +89,7 @@ class SiameseAttentionNet(nn.Module):
         norm_data = (origin_data - d_min).true_divide(dst)
         return norm_data
 
-
 def MyLoss(pred, label):
-    criterion = nn.BCEWithLogitsLoss()
-    # criterion = nn.MSELoss(reduction='mean')
+    criterion = nn.MSELoss(reduction='mean')
     loss = criterion(pred, label)
     return loss
